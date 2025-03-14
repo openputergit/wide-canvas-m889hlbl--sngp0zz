@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoodSync AI - Mental Health Assistant</title>
+    <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-black min-h-screen text-white overflow-x-hidden">
+    <canvas id="canvas"></canvas>
+
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-6xl font-bold mb-4 text-cyan-400">MoodSync AI</h1>
+            <p class="text-xl text-gray-300">Your Personal Mental Health Assistant</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+            <!-- Facial Analysis Section -->
+            <div class="glass rounded-2xl p-6 pulse">
+                <h2 class="text-2xl font-semibold mb-4 text-cyan-300">
+                    <i class="bi bi-camera-video"></i> Facial Emotion Analysis
+                </h2>
+                <div id="videoContainer" class="relative rounded-xl overflow-hidden bg-gray-900 h-64 flex items-center justify-center">
+                    <video id="video" autoplay muted class="w-full h-full object-cover"></video>
+                    <div id="scanLine" class="absolute top-0 w-full h-1 bg-cyan-400"></div>
+                </div>
+                <button id="startScan" class="mt-4 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg px-6 py-2 w-full">
+                    Start Scan
+                </button>
+            </div>
+
+            <!-- Text Input Section -->
+            <div class="glass rounded-2xl p-6">
+                <h2 class="text-2xl font-semibold mb-4 text-cyan-300">
+                    <i class="bi bi-chat-dots"></i> Express Your Feelings
+                </h2>
+                <textarea id="moodInput" class="w-full h-32 bg-gray-800 text-white rounded-lg p-4 mb-4" 
+                    placeholder="How are you feeling today?"></textarea>
+                <button id="analyzeText" class="bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg px-6 py-2 w-full">
+                    Analyze Mood
+                </button>
+            </div>
+
+            <!-- Mood Analysis Results -->
+            <div class="glass rounded-2xl p-6 col-span-1 md:col-span-2">
+                <h2 class="text-2xl font-semibold mb-4 text-cyan-300">
+                    <i class="bi bi-graph-up"></i> Mood Analysis
+                </h2>
+                <div id="moodGraph" class="h-48 bg-gray-800 rounded-lg mb-4"></div>
+                <div id="aiResponse" class="text-lg text-cyan-100"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Three.js Background
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({
+            canvas: document.querySelector('#canvas'),
+            alpha: true
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        // Create neural network visualization
+        const particles = new THREE.BufferGeometry();
+        const particleCount = 1000;
+        const positions = new Float32Array(particleCount * 3);
+
+        for(let i = 0; i < particleCount * 3; i++) {
+            positions[i] = (Math.random() - 0.5) * 10;
+        }
+
+        particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const material = new THREE.PointsMaterial({
+            size: 0.02,
+            color: 0x00ffff
+        });
+
+        const pointCloud = new THREE.Points(particles, material);
+        scene.add(pointCloud);
+        camera.position.z = 5;
+
+        // Animation
+        function animate() {
+            requestAnimationFrame(animate);
+            pointCloud.rotation.x += 0.001;
+            pointCloud.rotation.y += 0.001;
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Mood Analysis functionality
+        const startScan = document.getElementById('startScan');
+        const video = document.getElementById('video');
+        const moodInput = document.getElementById('moodInput');
+        const analyzeText = document.getElementById('analyzeText');
+        const aiResponse = document.getElementById('aiResponse');
+
+        // Facial scan animation
+        startScan.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                
+                // Simulated scanning animation
+                const scanLine = document.getElementById('scanLine');
+                scanLine.style.transition = 'transform 2s linear';
+                scanLine.style.transform = 'translateY(256px)';
+                
+                setTimeout(() => {
+                    scanLine.style.transform = 'translateY(0)';
+                    analyzeMood('facial');
+                }, 2000);
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                aiResponse.innerHTML = 'Unable to access camera. Please try text input instead.';
+            }
+        });
+
+        analyzeText.addEventListener('click', () => {
+            analyzeMood('text');
+        });
+
+        function analyzeMood(type) {
+            const responses = [
+                "I sense you're feeling positive today! Remember to maintain this energy by engaging in activities you enjoy.",
+                "I detect some stress signals. Let's try some deep breathing exercises together.",
+                "You seem contemplative. Would you like to explore what's on your mind?",
+                "Your emotional state indicates you might benefit from some self-care activities."
+            ];
+            
+            const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+            aiResponse.innerHTML = `<p class="mb-4">${randomResponse}</p>
+                <p class="text-cyan-300">Recommended Activities:</p>
+                <ul class="list-disc list-inside ml-4">
+                    <li>5-minute mindfulness meditation</li>
+                    <li>Short walking break</li>
+                    <li>Journal writing</li>
+                    <li>Deep breathing exercises</li>
+                </ul>`;
+            
+            // Simulate mood graph
+            const graph = document.getElementById('moodGraph');
+            graph.innerHTML = `<div class="h-full w-full flex items-end justify-around p-4">
+                ${Array(7).fill().map(() => `
+                    <div class="w-8 bg-cyan-500" style="height: ${Math.random() * 100}%"></div>
+                `).join('')}
+            </div>`;
+        }
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
